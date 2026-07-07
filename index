@@ -1,1 +1,297 @@
+const sheetID = "1SPIxyRV10lITxy6bFqCFGdJJpor3Sl9BmtwgRaHe6MY";
+const sheetName = "SuiviPrepaAVII";
 
+/*function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Préparation AVII")
+    .addItem("Ouvrir (nouvelle version)", "openDialog") // Changez le texte
+    .addToUi();
+}*/
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  
+  // FORÇAGE DU MODE DIALOG (version robuste)
+  ui.createMenu("Préparation AVII")
+    .addItem("📊 Ouvrir en fenêtre", "forceDialogMode")
+    .addToUi();
+}
+
+function forceDialogMode() {
+  const htmlOutput = HtmlService
+    .createHtmlOutputFromFile('Index')
+    .setWidth(800)
+    .setHeight(600)
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, "PRÉPARATION AVII - VERSION DIALOG");
+}
+
+function openDialog() {
+  /*SpreadsheetApp.getUi().alert("DEBUG", "openDialog appelé !", SpreadsheetApp.getUi().ButtonSet.OK);*/
+  const html = HtmlService.createHtmlOutputFromFile('Index')
+    .setWidth(500) // Largeur en pixels
+    .setTitle("Mise à jour des données");
+    
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+function getDropdownData() {
+  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
+  const data = sheet.getDataRange().getValues();
+  const niveaux = [...new Set(data.slice(1).map(row => row[1]).filter(v => v && v.trim() !== ""))];
+  const regions = [...new Set(data.slice(1).map(row => `${row[1]}|${row[2]}`))].map(r => {
+    const [niveau, region] = r.split('|');
+    return { niveau, region };
+  });
+
+  const districts = data.slice(1).map(row => ({
+    niveau: row[1],
+    region: row[2],
+    district: row[3],
+  }));
+
+  return { niveaux, regions, districts };
+}
+
+function getRowData(niveau, region, district) {
+  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
+  const data = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (row[1] === niveau && row[2] === region && row[3] === district) {
+      const result = row.slice(4, 31); // De E à AE
+      
+      // Formatage explicite de la date de début (AE, index 26 dans result)
+      if (result[26] instanceof Date) {
+        result[26] = Utilities.formatDate(result[26], Session.getScriptTimeZone(), "yyyy-MM-dd");
+      }
+      
+      return result;
+    }
+  }
+  return [];
+}
+
+function saveRowData(niveau, region, district, values) {
+  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (row[1] === niveau && row[2] === region && row[3] === district) {
+      for (let j = 0; j < values.length; j++) {
+        sheet.getRange(i + 1, 5 + j).setValue(values[j]); // colonnes E = 5
+      }
+      sheet.getRange(i + 1, 31).setValue(new Date()); // mise à jour date en colonne AF
+      // Met à jour la cellule A2 de "Dashboard District"
+      const updateSuccess = updateDashboardDistrict(region);
+      console.log("Résultat de updateDashboardDistrict :", updateSuccess);
+      break;
+    }
+  }
+}
+
+function getDataByLocalite(localite) {
+  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
+  const data = sheet.getDataRange().getValues();
+  
+  const searchTerm = localite.toString().toUpperCase().trim();
+
+  for (let i = 1; i < data.length; i++) {
+    const rowValue = data[i][0] ? data[i][0].toString().toUpperCase().trim() : '';
+    
+    if (rowValue === searchTerm) {
+      console.log("Correspondance trouvée ligne:", i+1);
+      const result = data[i].slice(4, 31);
+      
+      // Conversion explicite pour le transfert
+      return result.map(item => {
+        if (item instanceof Date) {
+          return Utilities.formatDate(item, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        }
+        return item !== null && item !== undefined ? item.toString() : "";
+      });
+    }
+  }
+  return null;
+}
+
+function updateDashboardDistrict(region) {
+  try {
+    const ss = SpreadsheetApp.openById(sheetID);
+    console.log("Nom de la feuille recherchée : 'Dashboard District'");
+    
+    const dashboardSheet = ss.getSheetByName("Dashboard District");
+    
+    if (!dashboardSheet) {
+      console.error("ERREUR : La feuille 'Dashboard District' est introuvable. Feuilles disponibles :");
+      console.log(ss.getSheets().map(s => s.getName()));
+      throw new Error("Feuille 'Dashboard District' introuvable");
+    }
+    
+    console.log(`Tentative d'écriture dans A2 avec la valeur : ${region}`);
+    dashboardSheet.getRange("A2").setValue(region);
+    console.log("Écriture réussie dans A2");
+    
+    return true;
+  } catch (e) {
+    console.error("Échec de updateDashboardDistrict :", e.message);
+    return false;
+  }
+}
+/*
+function doGet(e) {
+  // Vérifier si l'utilisateur est déjà authentifié
+  if (Session.getActiveUser().getEmail()) {
+    return buildMainInterface();
+  } else {
+    // Rediriger vers l'authentification Google
+    return HtmlService.createHtmlOutput(
+      '<script>window.top.location.href="https://accounts.google.com";</script>'
+    );
+  }
+}
+*/
+
+// Manala soratra
+function doGet() {
+  const htmlOutput = HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Application AVII')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    
+  return htmlOutput;
+}
+
+/*******************************************************************/
+
+/**
+ * CONFIGURATION
+ */
+
+// Configuration unique
+const CONFIG = {
+  ALLOWED_EMAILS: [
+    "ndranto.andrianasolo@gmail.com",
+    "ndrantomahefa@gmail.com",
+    "Andrianasolojery@gmail.com",
+    "mbinisoaeve@gmail.com",
+    "ndranto_man@yahoo.fr",
+    "tojorandrianarijaona23@gmail.com",
+    "tojorandrianarijaona@gmail.com",
+    "andrytokyrakotondrainibe@gmail.com",
+    "irikoandrianasolo@gmail.com"
+  ],
+  APP_TITLE: "Mise à jour des données AVII",
+  DEBUG_MODE: true // À mettre à false en production
+};
+
+// Fonction d'autorisation
+function checkAuthorization(email) {
+  if (!email) return false;
+  const cleanEmail = email.toString().toLowerCase().trim();
+  return CONFIG.ALLOWED_EMAILS.some(
+    allowed => allowed.toLowerCase().trim() === cleanEmail
+  );
+}
+
+function verifyAuthorization() {
+  const email = Session.getEffectiveUser().getEmail();
+  if (!checkAuthorization(email)) {
+    throw new Error(`Accès refusé pour ${email}`);
+  }
+  return true;
+}
+
+function onOpen() {
+  try {
+    if (checkAuthorization(Session.getEffectiveUser().getEmail())) {
+      SpreadsheetApp.getUi()
+        .createMenu("Préparation AVII")
+        .addItem("Ouvrir", "openSidebar")
+        .addToUi();
+    }
+  } catch (e) {
+    console.error("Erreur dans onOpen:", e);
+  }
+}
+
+function openSidebar() {
+  try {
+    const html = HtmlService.createHtmlOutputFromFile('Index')
+      .setWidth(500)
+      .setTitle(CONFIG.APP_TITLE);
+    SpreadsheetApp.getUi().showSidebar(html);
+  } catch (e) {
+    console.error("Erreur dans openSidebar:", e);
+    SpreadsheetApp.getUi().alert("Erreur: " + e.message);
+  }
+}
+
+function doGet(e) {
+  try {
+    verifyAuthorization();
+    return HtmlService
+      .createTemplateFromFile('Index')
+      .evaluate()
+      .setTitle(CONFIG.APP_TITLE)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  } catch (error) {
+    return HtmlService.createHtmlOutput(`
+      <h1>Accès non autorisé</h1>
+      <p>${error.message}</p>
+      <p>Contactez l'administrateur.</p>
+    `).setTitle('Erreur d\'accès');
+  }
+}
+
+// Fonctions pour les données (ESSENTIELLES pour les dropdowns)
+function getDropdownData() {
+  try {
+    verifyAuthorization();
+    const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
+    const data = sheet.getDataRange().getValues();
+    
+    const niveaux = [...new Set(data.slice(1).map(row => row[1]).filter(Boolean))];
+    const regions = [...new Set(data.slice(1).map(row => `${row[1]}|${row[2]}`))]
+      .map(r => {
+        const [niveau, region] = r.split('|');
+        return { niveau, region };
+      });
+
+    const districts = data.slice(1).map(row => ({
+      niveau: row[1],
+      region: row[2],
+      district: row[3]
+    }));
+
+    return { 
+      success: true,
+      niveaux: niveaux.filter(n => n), 
+      regions: regions.filter(r => r.region), 
+      districts: districts.filter(d => d.district)
+    };
+  } catch (e) {
+    console.error("Erreur dans getDropdownData:", e);
+    return { success: false, error: e.message };
+  }
+}
+
+// Autres fonctions nécessaires (conservez vos fonctions existantes)
+function getRowData(niveau, region, district) {
+  verifyAuthorization();
+  // ... votre implémentation existante
+}
+
+function saveRowData(niveau, region, district, values) {
+  verifyAuthorization();
+  // ... votre implémentation existante
+}
+
+function testAuth() {
+  console.log("Test avec email autorisé:", 
+    checkAuthorization("ndrantomahefa@gmail.com")); // Devrait retourner true
+  
+  console.log("Test avec email non autorisé:", 
+    checkAuthorization("test@example.com")); // Devrait retourner false
+}
