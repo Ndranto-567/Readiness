@@ -1,297 +1,684 @@
-const sheetID = "1SPIxyRV10lITxy6bFqCFGdJJpor3Sl9BmtwgRaHe6MY";
-const sheetName = "SuiviPrepaAVII";
-
-/*function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu("Préparation AVII")
-    .addItem("Ouvrir (nouvelle version)", "openDialog") // Changez le texte
-    .addToUi();
-}*/
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  
-  // FORÇAGE DU MODE DIALOG (version robuste)
-  ui.createMenu("Préparation AVII")
-    .addItem("📊 Ouvrir en fenêtre", "forceDialogMode")
-    .addToUi();
-}
-
-function forceDialogMode() {
-  const htmlOutput = HtmlService
-    .createHtmlOutputFromFile('Index')
-    .setWidth(800)
-    .setHeight(600)
-    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
-
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, "PRÉPARATION AVII - VERSION DIALOG");
-}
-
-function openDialog() {
-  /*SpreadsheetApp.getUi().alert("DEBUG", "openDialog appelé !", SpreadsheetApp.getUi().ButtonSet.OK);*/
-  const html = HtmlService.createHtmlOutputFromFile('Index')
-    .setWidth(500) // Largeur en pixels
-    .setTitle("Mise à jour des données");
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
     
-  SpreadsheetApp.getUi().showSidebar(html);
+  iframe[src*="signaler"] { display: none !important; }
+  .docs-dialog-footer { visibility: hidden !important; }
+
+        body {
+  padding: 20px;
+    font-family: Arial, sans-serif;
+  }
+          
+       select, input { margin-bottom: 10px; width: 100%; padding: 5px; }
+      button { padding: 10px 15px; margin-top: 10px; }
+      .hidden { display: none; }
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+      .full-width { grid-column: span 2; }
+      .section-title { 
+        grid-column: span 2; 
+        background-color: #f0f0f0; 
+        padding: 8px; 
+        margin: 10px 0 5px 0;
+        font-weight: bold;
+      }
+      .field-label { 
+        font-weight: bold; 
+        margin-bottom: 5px; 
+        font-size: 0.9em;
+      }
+      .field-container {
+        display: flex;
+        flex-direction: column;
+      }
+      .radio-group {
+        display: flex;
+        gap: 15px;
+        margin-top: 5px;
+      }
+      .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .radio-option input[type="radio"] {
+        margin: 0;
+      }
+
+              /* Ajoutez ces nouvelles règles */
+  .response-yes { background-color: #d4edda; }  /* Vert clair pour Oui */
+  .response-no { background-color: #f8d7da; }   /* Rouge clair pour Non */
+  .response-na { background-color: #fff3cd; }   /* Jaune clair pour NA */
+  
+  /* Style pour les groupes de radio */
+  .radio-container {
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 5px;
+  }
+    </style>
+  </head>
+  <body>
+    <h2>Mettre à jour les données</h2>
+
+    <div class="form-grid">
+      <div>
+        <label for="niveau">Niveau :</label>
+        <select id="niveau" onchange="loadRegions(); updateLocalite();">
+          <option value="">-- Sélectionner --</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="region">Région :</label>
+        <select id="region" onchange="loadDistricts(); updateLocalite();">
+          <option value="">-- Sélectionner --</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="district">District :</label>
+        <select id="district" onchange="updateLocalite();">
+          <option value="">-- Sélectionner --</option>
+        </select>
+      </div>
+
+      <div class="full-width">
+        <label for="localite">Localité :</label>
+        <input type="text" id="localite" name="localite" readonly>
+        <button onclick="loadDataForLocalite()">Charger les données</button>
+      </div>
+    </div>
+
+    <div id="dataForm" class="hidden">
+      <h3>Données à modifier :</h3>
+      <form id="formDonnees" class="form-grid">
+        
+        <div class="section-title">1. Planification, coordination, et financement</div>
+        
+        <div class="field-container">
+          <div class="field-label">Sous-comités technique établis</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_E" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_E" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_E" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Sous-comités vaccins, surveillance, chaîne du froid et logistique établis</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_F" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_F" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_F" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Sous-comités plaidoyer, mobilisation sociale et communication établis</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_G" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_G" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_G" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Sous-comités gestion des risques/relations avec les médias établis</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_H" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_H" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_H" value="NA"> NA</label>
+          </div>
+        </div>
+     
+        <div class="field-container">
+          <div class="field-label">Nombre de cible par CSB et Fokontany établis</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_I" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_I" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_I" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Listes des acteurs à mobiliser actualisée et partagée au niveau régional</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_J" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_J" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_J" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Fonds disponibles au niveau du DISTRICT pour les coûts opérationnels</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_K" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_K" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_K" value="NA"> NA</label>
+          </div>
+        </div>
+
+        <!-- Orientation -->
+        <div class="section-title">2.Formation à la qualité des AVII</div>
+        
+        <div class="field-container">
+          <div class="field-label">Orientation des CSB et des acteurs locaux sur les directives des AVII réalisée</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_L" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_L" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_L" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Orientation sur le GTS pour le suivi de la mise en œuvre des stratégies avancées</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_M" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_M" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_M" value="NA"> NA</label>
+          </div>
+        </div>
+
+       
+        <div class="field-container">
+          <div class="field-label">Séance de rappel pour les vaccinateurs et les gestionnaires de données au niveau opérationnel a eu lieu</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_N" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_N" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_N" value="NA"> NA</label>
+          </div>
+        </div>
+
+                <!-- Rappels -->
+        <div class="section-title">3. Monitorage et supervision </div>
+        
+        <div class="field-container">
+          <div class="field-label">Séance de rappel sur les outils de gestion et le masque de saisie achevée (1 semaine)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_O" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_O" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_O" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Microplan avec la population cible et une cartographie mettant en évidence les zones/fokontany/secteur à forte zéro disponibles au niveau CSB (3 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_P" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_P" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_P" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Soutien ciblé aux CSB qui ne progressent pas bien en matière de préparation par le DISTRICT (2 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_Q" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_Q" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_Q" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Orientation des CSB sur le GTS par le superviseur du DISTRICT tenue (1 semaine)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_R" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_R" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_R" value="NA"> NA</label>
+          </div>
+        </div>
+
+       
+        <div class="field-container">
+          <div class="field-label">Plan de déploiement des superviseurs régionaux et DISTRICT disponibles (1 semaine)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_S" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_S" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_S" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Rapports/canevas journaliers de la mise en œuvre des AVII disponibles (1 semaine)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_T" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_T" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_T" value="NA"> NA</label>
+          </div>
+        </div>
+
+        <!-- Plans -->
+        <div class="section-title">4. Vaccin, chaîne du froid et logistique</div>
+        
+        
+        <div class="field-container">
+          <div class="field-label">Plan de distribution et tableau de bord de la situation des vaccins et des outils de gestion disponibles au niveau régional et DISTRICT (5 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_U" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_U" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_U" value="NA"> NA</label>
+          </div>
+        </div>
+      
+        <div class="field-container">
+          <div class="field-label">Disponibilité de vaccins de routine et outils de gestion au niveau des DISTRICT (incluant la quantité, PCV et date de péremption) (2 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_V" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_V" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_V" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Disponibilité de vaccins de BCU et outils de gestion au niveau des DISTRICT (incluant la quantité, PCV et date de péremption) (2 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_W" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_W" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_W" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Plan de distribution des vaccins routine/BCU et outils de gestion vers les CSB est disponible au niveau DISTRICTs (1 semaine)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_X" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_X" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_X" value="NA"> NA</label>
+          </div>
+        </div>
+     
+        <div class="field-container">
+          <div class="field-label">Fonctionnalité des ECDF et production des accumulateurs (1 semaine)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_Y" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_Y" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_Y" value="NA"> NA</label>
+          </div>
+        </div>
+
+          <!-- Fonctionnalités -->
+        <div class="section-title">5. Plaidoyer, mobilisation sociale et communication</div>
+        
+        
+        <div class="field-container">
+          <div class="field-label">Réunions de plaidoyer et de planification avec les parties prenantes et les personnes influentes de la communauté tenues (3 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_Z" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_Z" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_Z" value="NA"> NA</label>
+          </div>
+        </div>
+      
+        <div class="field-container">
+          <div class="field-label">Mobilisateurs sociaux ont été réorientés (3 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_AA" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_AA" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_AA" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Activités de mobilisation (dialogue communautaire lancées, causerie éducative, VAD) (3 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_AB" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_AB" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_AB" value="NA"> NA</label>
+          </div>
+        </div>
+        
+        <div class="field-container">
+          <div class="field-label">Lancement d'activités de communication avec les médias et le public (3 semaines)</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="col_AC" value="1"> Oui</label>
+            <label class="radio-option"><input type="radio" name="col_AC" value="0"> Non</label>
+            <label class="radio-option"><input type="radio" name="col_AC" value="NA"> NA</label>
+          </div>
+        </div>
+
+        <!-- Dates -->
+
+           <div class="section-title">10. Dates</div>
+
+                     <div class="field-container">
+            <div class="field-label">Date de mise à jour</div>
+            <input type="date" id="col_AD" readonly>
+          </div>
+        
+        
+
+        <div class="field-container">
+  <div class="field-label">Date prévue de début de la campagne</div>
+  <input type="date" id="col_AE" onfocus="this.showPicker()">
+</div>
+
+<div class="full-width" style="margin-top: 20px; text-align: right;">
+  <button onclick="submitForm()" 
+          style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+    Enregistrer les modifications
+  </button>
+</div>
+      
+
+  <script>
+    // Dans la partie <script> de votre HTML
+document.addEventListener('DOMContentLoaded', function() {
+  // Vérifie si nous sommes dans une web app
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(loadDataFromServer)
+      .withFailureHandler(showAuthError)
+      .checkAuthorizationWrapper();
+  } else {
+    // Mode local (éditeur)
+    loadDataFromServer();
+  }
+});
+
+function showAuthError(error) {
+  alert("Erreur d'autorisation: " + error);
+  document.body.innerHTML = `
+    <div style="padding: 20px; color: red;">
+      <h2>Accès non autorisé</h2>
+      <p>Vous n'avez pas les droits nécessaires pour accéder à cette application.</p>
+    </div>
+  `;
 }
 
-function getDropdownData() {
-  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
-  const data = sheet.getDataRange().getValues();
-  const niveaux = [...new Set(data.slice(1).map(row => row[1]).filter(v => v && v.trim() !== ""))];
-  const regions = [...new Set(data.slice(1).map(row => `${row[1]}|${row[2]}`))].map(r => {
-    const [niveau, region] = r.split('|');
-    return { niveau, region };
+      // Données globales
+      let fullData = null;
+      
+      // Chargement initial des données
+      function loadDataFromServer() {
+        google.script.run
+          .withSuccessHandler(data => {
+            fullData = data;
+            populateDropdowns(data);
+          })
+          .getDropdownData();
+      }
+      
+      // Remplir les menus déroulants
+      function populateDropdowns(data) {
+        const niveauSelect = document.getElementById("niveau");
+        
+        // Nettoyer et remplir le menu Niveau
+        niveauSelect.innerHTML = '<option value="">-- Sélectionner --</option>';
+        data.niveaux.forEach(n => {
+          const option = document.createElement("option");
+          option.value = n;
+          option.textContent = n;
+          niveauSelect.appendChild(option);
+        });
+      }
+      
+      // Charger les régions en fonction du niveau sélectionné
+      function loadRegions() {
+        const niveau = document.getElementById("niveau").value;
+        const regionSelect = document.getElementById("region");
+        regionSelect.innerHTML = '<option value="">-- Sélectionner --</option>';
+        
+        if (!niveau) return;
+        
+        const filteredRegions = fullData.regions.filter(r => r.niveau === niveau);
+        filteredRegions.forEach(r => {
+          const option = document.createElement("option");
+          option.value = r.region;
+          option.textContent = r.region;
+          regionSelect.appendChild(option);
+        });
+        
+        // Réinitialiser les champs dépendants
+        document.getElementById("district").innerHTML = '<option value="">-- Sélectionner --</option>';
+        document.getElementById("localite").value = "";
+      }
+      
+      // Charger les districts en fonction de la région sélectionnée
+      function loadDistricts() {
+        const niveau = document.getElementById("niveau").value;
+        const region = document.getElementById("region").value;
+        const districtSelect = document.getElementById("district");
+        districtSelect.innerHTML = '<option value="">-- Sélectionner --</option>';
+        
+        if (!niveau || !region) return;
+        
+        const filteredDistricts = fullData.districts.filter(d => 
+          d.niveau === niveau && d.region === region
+        );
+        
+        filteredDistricts.forEach(d => {
+          const option = document.createElement("option");
+          option.value = d.district;
+          option.textContent = d.district;
+          districtSelect.appendChild(option);
+        });
+        
+        document.getElementById("localite").value = "";
+      }
+  
+function updateLocalite() {
+  const niveau = document.getElementById("niveau").value || "";
+  const region = document.getElementById("region").value || "";
+  const district = document.getElementById("district").value || "";
+  
+  // Format standardisé : tout en majuscules sans espaces superflus
+  let localite = niveau.toUpperCase().trim();
+  
+  if (region) {
+    localite += "_" + region.toUpperCase().trim().replace(/\s+/g, ' ');
+  }
+  
+  if (district) {
+    localite += "_" + district.toUpperCase().trim().replace(/\s+/g, ' ');
+  }
+  
+  console.log("Localité générée:", localite);
+  document.getElementById("localite").value = localite;
+}
+
+      
+      // Charger les données pour la localité sélectionnée
+      function loadDataForLocalite() {
+  const localite = document.getElementById("localite").value;
+  if (!localite) {
+    alert("Veuillez sélectionner une localité complète");
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler((data) => {
+      if (!data) {
+        alert("Aucune donnée trouvée pour cette localité");
+        return;
+      }
+      fillFormWithData(data);
+      setupDateValidation(); // Appel sécurisé
+      document.getElementById("dataForm").classList.remove("hidden");
+    })
+    .withFailureHandler((error) => {
+      console.error("Erreur:", error);
+      alert("Erreur de chargement des données");
+    })
+    .getDataByLocalite(localite);
+}
+/////////////////////////////////////////////////////////////////////////MODIF//////////////////////////
+function fillFormWithData(data) {
+  console.log("Remplissage du formulaire avec:", data);
+  const columns = ["E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T",
+                 "U","V","W","X","Y","Z","AA","AB","AC","AD","AE"];
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  columns.forEach((col, index) => {
+    const value = data[index] || "";
+    
+    if (index <= 24) { // Colonnes E à AC (boutons radio)
+      const container = document.querySelector(`[name="col_${col}"]`).closest('.field-container');
+      container.classList.remove('response-yes', 'response-no', 'response-na');
+      
+      if (value === "1") container.classList.add('response-yes');
+      else if (value === "0") container.classList.add('response-no');
+      else container.classList.add('response-na');
+      
+      const radios = document.querySelectorAll(`input[name="col_${col}"]`);
+      radios.forEach(radio => radio.checked = (radio.value === value.toString()));
+    } 
+    else if (col === 'AD') { // Date de mise à jour
+      document.getElementById('col_AD').value = today; // Toujours date du jour
+    }
+    else if (col === 'AE') { // Date de début
+      const dateDebutInput = document.getElementById('col_AE');
+      dateDebutInput.value = value || today; // Conserve la valeur existante ou date du jour si vide
+      dateDebutInput.min = today; // Définit le min à aujourd'hui
+    }
   });
-
-  const districts = data.slice(1).map(row => ({
-    niveau: row[1],
-    region: row[2],
-    district: row[3],
-  }));
-
-  return { niveaux, regions, districts };
 }
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
-function getRowData(niveau, region, district) {
-  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
-  const data = sheet.getDataRange().getValues();
+function submitForm() {
+  const today = new Date().toISOString().split('T')[0];
+  const dateDebut = document.getElementById('col_AE').value;
   
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    if (row[1] === niveau && row[2] === region && row[3] === district) {
-      const result = row.slice(4, 31); // De E à AE
-      
-      // Formatage explicite de la date de début (AE, index 26 dans result)
-      if (result[26] instanceof Date) {
-        result[26] = Utilities.formatDate(result[26], Session.getScriptTimeZone(), "yyyy-MM-dd");
-      }
-      
-      return result;
-    }
+  // Validation de la date de début
+  if (dateDebut && dateDebut < today) {
+    alert("La date de début doit être aujourd'hui ou ultérieure");
+    document.getElementById('col_AE').value = today;
+    return false; // Empêche la soumission
   }
-  return [];
-}
-
-function saveRowData(niveau, region, district, values) {
-  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
-  const data = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    if (row[1] === niveau && row[2] === region && row[3] === district) {
-      for (let j = 0; j < values.length; j++) {
-        sheet.getRange(i + 1, 5 + j).setValue(values[j]); // colonnes E = 5
-      }
-      sheet.getRange(i + 1, 31).setValue(new Date()); // mise à jour date en colonne AF
-      // Met à jour la cellule A2 de "Dashboard District"
-      const updateSuccess = updateDashboardDistrict(region);
-      console.log("Résultat de updateDashboardDistrict :", updateSuccess);
-      break;
-    }
-  }
-}
-
-function getDataByLocalite(localite) {
-  const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
-  const data = sheet.getDataRange().getValues();
+  /*
+  // Modifiez la fonction submitForm pour fermer la modale parente
+function submitForm() {
+  const today = new Date().toISOString().split('T')[0];
+  const dateDebut = document.getElementById('col_AE').value;
   
-  const searchTerm = localite.toString().toUpperCase().trim();
-
-  for (let i = 1; i < data.length; i++) {
-    const rowValue = data[i][0] ? data[i][0].toString().toUpperCase().trim() : '';
-    
-    if (rowValue === searchTerm) {
-      console.log("Correspondance trouvée ligne:", i+1);
-      const result = data[i].slice(4, 31);
-      
-      // Conversion explicite pour le transfert
-      return result.map(item => {
-        if (item instanceof Date) {
-          return Utilities.formatDate(item, Session.getScriptTimeZone(), "yyyy-MM-dd");
-        }
-        return item !== null && item !== undefined ? item.toString() : "";
-      });
-    }
-  }
-  return null;
-}
-
-function updateDashboardDistrict(region) {
-  try {
-    const ss = SpreadsheetApp.openById(sheetID);
-    console.log("Nom de la feuille recherchée : 'Dashboard District'");
-    
-    const dashboardSheet = ss.getSheetByName("Dashboard District");
-    
-    if (!dashboardSheet) {
-      console.error("ERREUR : La feuille 'Dashboard District' est introuvable. Feuilles disponibles :");
-      console.log(ss.getSheets().map(s => s.getName()));
-      throw new Error("Feuille 'Dashboard District' introuvable");
-    }
-    
-    console.log(`Tentative d'écriture dans A2 avec la valeur : ${region}`);
-    dashboardSheet.getRange("A2").setValue(region);
-    console.log("Écriture réussie dans A2");
-    
-    return true;
-  } catch (e) {
-    console.error("Échec de updateDashboardDistrict :", e.message);
+  if (dateDebut && dateDebut < today) {
+    alert("La date de début doit être aujourd'hui ou ultérieure");
+    document.getElementById('col_AE').value = today;
     return false;
   }
-}
-/*
-function doGet(e) {
-  // Vérifier si l'utilisateur est déjà authentifié
-  if (Session.getActiveUser().getEmail()) {
-    return buildMainInterface();
-  } else {
-    // Rediriger vers l'authentification Google
-    return HtmlService.createHtmlOutput(
-      '<script>window.top.location.href="https://accounts.google.com";</script>'
-    );
-  }
-}
+
 */
-
-// Manala soratra
-function doGet() {
-  const htmlOutput = HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('Application AVII')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-    
-  return htmlOutput;
-}
-
-/*******************************************************************/
-
-/**
- * CONFIGURATION
- */
-
-// Configuration unique
-const CONFIG = {
-  ALLOWED_EMAILS: [
-    "ndranto.andrianasolo@gmail.com",
-    "ndrantomahefa@gmail.com",
-    "Andrianasolojery@gmail.com",
-    "mbinisoaeve@gmail.com",
-    "ndranto_man@yahoo.fr",
-    "tojorandrianarijaona23@gmail.com",
-    "tojorandrianarijaona@gmail.com",
-    "andrytokyrakotondrainibe@gmail.com",
-    "irikoandrianasolo@gmail.com"
-  ],
-  APP_TITLE: "Mise à jour des données AVII",
-  DEBUG_MODE: true // À mettre à false en production
-};
-
-// Fonction d'autorisation
-function checkAuthorization(email) {
-  if (!email) return false;
-  const cleanEmail = email.toString().toLowerCase().trim();
-  return CONFIG.ALLOWED_EMAILS.some(
-    allowed => allowed.toLowerCase().trim() === cleanEmail
-  );
-}
-
-function verifyAuthorization() {
-  const email = Session.getEffectiveUser().getEmail();
-  if (!checkAuthorization(email)) {
-    throw new Error(`Accès refusé pour ${email}`);
-  }
-  return true;
-}
-
-function onOpen() {
-  try {
-    if (checkAuthorization(Session.getEffectiveUser().getEmail())) {
-      SpreadsheetApp.getUi()
-        .createMenu("Préparation AVII")
-        .addItem("Ouvrir", "openSidebar")
-        .addToUi();
-    }
-  } catch (e) {
-    console.error("Erreur dans onOpen:", e);
-  }
-}
-
-function openSidebar() {
-  try {
-    const html = HtmlService.createHtmlOutputFromFile('Index')
-      .setWidth(500)
-      .setTitle(CONFIG.APP_TITLE);
-    SpreadsheetApp.getUi().showSidebar(html);
-  } catch (e) {
-    console.error("Erreur dans openSidebar:", e);
-    SpreadsheetApp.getUi().alert("Erreur: " + e.message);
-  }
-}
-
-function doGet(e) {
-  try {
-    verifyAuthorization();
-    return HtmlService
-      .createTemplateFromFile('Index')
-      .evaluate()
-      .setTitle(CONFIG.APP_TITLE)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-  } catch (error) {
-    return HtmlService.createHtmlOutput(`
-      <h1>Accès non autorisé</h1>
-      <p>${error.message}</p>
-      <p>Contactez l'administrateur.</p>
-    `).setTitle('Erreur d\'accès');
-  }
-}
-
-// Fonctions pour les données (ESSENTIELLES pour les dropdowns)
-function getDropdownData() {
-  try {
-    verifyAuthorization();
-    const sheet = SpreadsheetApp.openById(sheetID).getSheetByName(sheetName);
-    const data = sheet.getDataRange().getValues();
-    
-    const niveaux = [...new Set(data.slice(1).map(row => row[1]).filter(Boolean))];
-    const regions = [...new Set(data.slice(1).map(row => `${row[1]}|${row[2]}`))]
-      .map(r => {
-        const [niveau, region] = r.split('|');
-        return { niveau, region };
-      });
-
-    const districts = data.slice(1).map(row => ({
-      niveau: row[1],
-      region: row[2],
-      district: row[3]
-    }));
-
-    return { 
-      success: true,
-      niveaux: niveaux.filter(n => n), 
-      regions: regions.filter(r => r.region), 
-      districts: districts.filter(d => d.district)
-    };
-  } catch (e) {
-    console.error("Erreur dans getDropdownData:", e);
-    return { success: false, error: e.message };
-  }
-}
-
-// Autres fonctions nécessaires (conservez vos fonctions existantes)
-function getRowData(niveau, region, district) {
-  verifyAuthorization();
-  // ... votre implémentation existante
-}
-
-function saveRowData(niveau, region, district, values) {
-  verifyAuthorization();
-  // ... votre implémentation existante
-}
-
-function testAuth() {
-  console.log("Test avec email autorisé:", 
-    checkAuthorization("ndrantomahefa@gmail.com")); // Devrait retourner true
+  // Récupération des autres valeurs
+  const niveau = document.getElementById("niveau").value || "";
+  const region = document.getElementById("region").value || "";
+  const district = document.getElementById("district").value || "";
   
-  console.log("Test avec email non autorisé:", 
-    checkAuthorization("test@example.com")); // Devrait retourner false
+  const columns = ["E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T",
+                 "U","V","W","X","Y","Z","AA","AB","AC","AD","AE"];
+  
+  const values = columns.map((col, index) => {
+    if (index <= 24) { // Boutons radio
+      const selected = document.querySelector(`input[name="col_${col}"]:checked`);
+      return selected ? selected.value : "NA";
+    } else { // Dates
+      const input = document.getElementById(`col_${col}`);
+      return input ? input.value : "";
+    }
+  });
+
+  // Envoi des données
+  google.script.run
+    .withSuccessHandler(() => {
+      alert("Données enregistrées avec succès !");
+      document.getElementById("dataForm").classList.add("hidden");
+    })
+    .withFailureHandler(error => {
+      console.error("Erreur:", error);
+      alert("Erreur lors de l'enregistrement: " + error.message);
+    })
+    .saveRowData(niveau, region, district, values);
+}      
+
+      window.onload = loadDataFromServer;
+////////////////////////////////////////////////////date/////////////////////////////////
+
+function setupDateValidation() {
+  const dateDebutInput = document.getElementById('col_AE');
+  if (!dateDebutInput) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  
+  dateDebutInput.addEventListener('change', function() {
+    if (this.value && this.value < today) {
+      alert("La date de début doit être aujourd'hui ou ultérieure");
+      this.value = today;
+    }
+  });
 }
+
+
+//////////////////////////////////////////////////////////////////////loko////////////////
+    
+document.addEventListener('DOMContentLoaded', function() {
+  // Écoute les changements sur tous les groupes de radio
+  document.querySelectorAll('.radio-group').forEach(group => {
+    group.addEventListener('change', function(e) {
+      const container = e.target.closest('.field-container');
+      const selectedValue = e.target.value;
+      
+      // Reset des classes
+      container.classList.remove('response-yes', 'response-no', 'response-na');
+      
+      // Ajoute la classe appropriée
+      if (selectedValue === "1") {
+        container.classList.add('response-yes');
+      } else if (selectedValue === "0") {
+        container.classList.add('response-no');
+      } else {
+        container.classList.add('response-na');
+      }
+    });
+  });
+});
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Supprime le footer Google après un délai
+    setTimeout(function() {
+      const googleFooters = document.querySelectorAll('div[aria-label="Signaler un abus"]');
+      googleFooters.forEach(footer => footer.style.display = 'none');
+      
+      // Alternative pour les iframes
+      const iframes = document.querySelectorAll('iframe');
+      iframes.forEach(iframe => {
+        if (iframe.src.includes('signaler')) {
+          iframe.remove();
+        }
+      });
+    }, 1000); // Délai pour laisser le temps au chargement
+  });
+
+  //////////////////////////////////////////////////////////////////////////
+  // Dans la partie <script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(initApplication)
+      .withFailureHandler(showAuthError)
+      .verifyAuthorization();
+  } else {
+    // Mode éditeur
+    initApplication();
+  }
+});
+
+function initApplication() {
+  loadDataFromServer();
+}
+
+function showAuthError(error) {
+  console.error("Erreur d'autorisation:", error);
+  document.body.innerHTML = `
+    <div style="padding: 20px; text-align: center;">
+      <h2 style="color: #d32f2f;">Accès non autorisé</h2>
+      <p>${error.message || "Vous n'avez pas les droits nécessaires."}</p>
+      <p>Contactez l'administrateur si vous pensez qu'il s'agit d'une erreur.</p>
+    </div>
+  `;
+}
+
+   </script>
+  </body>
+</html>
